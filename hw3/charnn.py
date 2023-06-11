@@ -23,7 +23,9 @@ def char_maps(text: str):
     #  It's best if you also sort the chars before assigning indices, so that
     #  they're in lexical order.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    my_set = set(text)
+    char_to_idx = {char : index for index, char in enumerate(my_set)}
+    idx_to_char = {index : char for index, char in enumerate(my_set)}
     # ========================
     return char_to_idx, idx_to_char
 
@@ -39,7 +41,10 @@ def remove_chars(text: str, chars_to_remove):
     """
     # TODO: Implement according to the docstring.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    text_clean = text
+    for char in chars_to_remove:
+        text_clean = text_clean.replace(char, "")
+    n_removed = len(text) - len(text_clean)
     # ========================
     return text_clean, n_removed
 
@@ -59,7 +64,14 @@ def chars_to_onehot(text: str, char_to_idx: dict) -> Tensor:
     """
     # TODO: Implement the embedding.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    index_list = list(map(char_to_idx.get, text))
+    index_tensor = torch.LongTensor(index_list)
+    index_tensor = index_tensor.reshape(-1, 1) # Reshape y to (N,1)
+    zeros = torch.zeros(size=(len(index_tensor), len(char_to_idx.keys())), dtype=torch.int8) # (N,C)
+    ones = torch.ones_like(index_tensor, dtype=torch.int8)
+    
+    # scatter: put items from 'src' into 'dest' at indices correspondnig to 'index' along 'dim'
+    result = torch.scatter(zeros, dim=1, index=index_tensor, src=ones)
     # ========================
     return result
 
@@ -76,7 +88,11 @@ def onehot_to_chars(embedded_text: Tensor, idx_to_char: dict) -> str:
     """
     # TODO: Implement the reverse-embedding.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    vector = torch.CharTensor(list(range(len(idx_to_char.keys()))))
+    indices = torch.matmul(embedded_text, vector)
+    indices = map(int, indices)
+    #print(list(map(idx_to_char.get, indices)))
+    result = "".join(map(idx_to_char.get, indices))
     # ========================
     return result
 
@@ -105,7 +121,12 @@ def chars_to_labelled_samples(text: str, char_to_idx: dict, seq_len: int, device
     #  3. Create the labels tensor in a similar way and convert to indices.
     #  Note that no explicit loops are required to implement this function.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    text = text[:(len(text) - 1) - (len(text) - 1) % seq_len + 1] 
+    embedded = chars_to_onehot(text, char_to_idx)
+    vector = torch.CharTensor(list(range(len(char_to_idx.keys()))))
+    labels = torch.matmul(embedded[1:, :], vector)
+    labels = labels.reshape(-1, seq_len)
+    samples = embedded[:-1, :].reshape(-1, seq_len, len(char_to_idx.keys()))
     # ========================
     return samples, labels
 
