@@ -142,7 +142,8 @@ def hot_softmax(y, dim=0, temperature=1.0):
     """
     # TODO: Implement based on the above.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    y = y / temperature
+    result = torch.softmax(y, dim=dim)
     # ========================
     return result
 
@@ -211,7 +212,9 @@ class SequenceBatchSampler(torch.utils.data.Sampler):
         #  you can drop it.
         idx = None  # idx should be a 1-d list of indices.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        batchs_count = len(self.dataset) // self.batch_size
+        two_d_idx = [[i * batchs_count + batch for i in range(self.batch_size)] for batch in range(batchs_count)]
+        idx = [i for batch_idx in two_d_idx for i in batch_idx]
         # ========================
         return iter(idx)
 
@@ -258,7 +261,25 @@ class MultilayerGRU(nn.Module):
         #      then call self.register_parameter() on them. Also make
         #      sure to initialize them. See functions in torch.nn.init.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        for layer in range(self.n_layers):
+            layer_in_dim = self.in_dim if layer == 0 else self.h_dim
+            layer_dict = {
+                "Wxz": nn.Linear(layer_in_dim, self.h_dim, bias=True),
+                "Whz": nn.Linear(self.h_dim, self.h_dim, bias=False),
+                "zsigmoid": nn.Sigmoid(),
+                "Wxr": nn.Linear(layer_in_dim, self.h_dim, bias=True),
+                "Whr": nn.Linear(self.h_dim, self.h_dim, bias=False),
+                "rsigmoid": nn.Sigmoid(),
+                "Wxg": nn.Linear(layer_in_dim, self.h_dim, bias=True),
+                "Whg": nn.Linear(self.h_dim, self.h_dim, bias=False),
+                "gtanh": nn.Tanh()
+            }
+            if dropout > 0:
+                layer_dict["dropout"] = nn.Dropout2d()
+            self.layer_params.append(layer_dict)
+            for name, module in layer_dict.items():
+                self.add_module(name + str(layer), module)
+        self.Why = nn.Linear(self.h_dim, self.out_dim, bias=True)
         # ========================
 
     def forward(self, input: Tensor, hidden_state: Tensor = None):
@@ -296,6 +317,20 @@ class MultilayerGRU(nn.Module):
         #  Tip: You can use torch.stack() to combine multiple tensors into a
         #  single tensor in a differentiable manner.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        ys = []
+        for t in range(input.shape[1]):
+            x = input[:, t, :]
+            for k, layer_dict in enumerate(self.layer_params):
+                h = layer_states[k]
+                z = layer_dict["zsigmoid"](layer_dict["Wxz"](x) + layer_dict["Whz"](h))
+                r = layer_dict["rsigmoid"](layer_dict["Wxr"](x) + layer_dict["Whr"](h))
+                g = layer_dict["gtanh"](layer_dict["Wxg"](x) + layer_dict["Whr"](r * h))
+                x = z * h + (1 - z) * g
+                if "dropout" in layer_dict:
+                    x = layer_dict["droupout"](x)
+                layer_states[k] = x
+            ys.append(self.Why(x))
+        layer_output = torch.stack(ys, dim=1)
+        hidden_state = torch.stack(layer_states, dim=1)
         # ========================
         return layer_output, hidden_state
