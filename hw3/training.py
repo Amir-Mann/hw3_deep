@@ -254,7 +254,6 @@ class RNNTrainer(Trainer):
         # ====== YOUR CODE: ======
         self.optimizer.zero_grad()
         
-        #print(f"Forwording")
         y_scores, self.hidden_state = self.model(x, self.hidden_state)
         loss = self.loss_fn(y_scores.view(-1, y_scores.shape[-1]), y.view(-1))
         
@@ -284,10 +283,8 @@ class RNNTrainer(Trainer):
             #  - Calculate number of correct predictions
             # ====== YOUR CODE: ======
             y_scores, self.hidden_state = self.model(x, self.hidden_state)
-            probas = torch.softmax(y_scores, dim=0)
-            loss = self.loss_fn(y, probas)
-            
-            num_correct = torch.sum(torch.argmax(probas, dim=0) == y)
+            loss = self.loss_fn(y_scores.view(-1, y_scores.shape[-1]), y.view(-1))
+            num_correct = torch.sum(torch.argmax(y_scores, dim=-1) == y)
             # ========================
 
         return BatchResult(loss.item(), num_correct.item() / seq_len)
