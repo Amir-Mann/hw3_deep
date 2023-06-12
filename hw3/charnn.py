@@ -336,7 +336,7 @@ class MultilayerGRU(nn.Module):
                 g = layer_dict["gtanh"](layer_dict["Wxg"](x) + layer_dict["Whr"](r * h))
                 x = z * h + (1 - z) * g
                 if "dropout" in layer_dict:
-                    x = layer_dict["droupout"](x)
+                    x = layer_dict["dropout"](x)
                 layer_states[k] = x
             ys.append(self.Why(x))
         layer_output = torch.stack(ys, dim=1)
