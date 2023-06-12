@@ -256,7 +256,7 @@ class RNNTrainer(Trainer):
         
         #print(f"Forwording")
         y_scores, self.hidden_state = self.model(x, self.hidden_state)
-        loss = self.loss_fn(y_scores.view(seq_len, -1), y.view(-1))
+        loss = self.loss_fn(y_scores.view(-1, y_scores.shape[-1]), y.view(-1))
         
         loss.backward()
         self.optimizer.step()
