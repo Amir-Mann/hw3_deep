@@ -19,7 +19,12 @@ class EncoderCNN(nn.Module):
         #  use pooling or only strides, use any activation functions,
         #  use BN or Dropout, etc.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        all_channels = [in_channels] + [64, 128, 256] + [out_channels]
+        for (in_chans, out_chans) in (zip(all_channels, all_channels[1:])):
+            modules.append(nn.Conv2d(in_chans, out_chans, kernel_size=5, stride=1, padding=2))
+            modules.append(nn.BatchNorm2d(out_channels))
+            modules.append(nn.ReLU())
+        modules.extend(modules)
         # ========================
         self.cnn = nn.Sequential(*modules)
 
