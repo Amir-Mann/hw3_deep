@@ -33,12 +33,29 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     #    (both for tokens that aren't in the window, and for tokens that correspond to padding according to the 'padding mask').
     # Aside from these two rules, you are free to implement the function as you wish. 
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    device = q.device
+    neg_inifinity = -1e+17
+    def multpli_single_sample_and_head(Q_K_tup):    
+        Q, K = Q_K_tup
+        def sparse_multipy(i_q_tup):
+            start = max(0, i_q_tup[0] - window_size // 2)
+            stop = min(i_q_tup[0] + window_size // 2, seq_len) + 1
+            result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(1, seq_len)
+            result[0, start:stop] = torch.matmul(i_q_tup[1],  K[start:stop, :].T)
+            return result            
+        
+        A = tuple(map(sparse_multipy, enumerate(Q)))
+        return torch.concat(A)
+
+    pre_norm_attention = tuple(map(multpli_single_sample_and_head, zip(q.view(-1, seq_len, embed_dim), k.view(-1, seq_len, embed_dim))))
+    pre_norm_attention = torch.concat(pre_norm_attention).reshape(*q.shape[:-2], seq_len, seq_len)
+    
+    attention = torch.softmax(pre_norm_attention / (embed_dim ** 0.5), dim=-1)
+    values = torch.matmul(attention, v)
     # ========================
 
 
     return values, attention
-
 
 
 class MultiHeadAttention(nn.Module):
@@ -80,7 +97,7 @@ class MultiHeadAttention(nn.Module):
         # TODO:
         # call the sliding window attention function you implemented
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        values, attention = sliding_window_attention(q, k, v, self.window_size, padding_mask)
         # ========================
 
         values = values.permute(0, 2, 1, 3) # [Batch, SeqLen, Head, Dims]
