@@ -94,7 +94,14 @@ class Trainer(abc.ABC):
             #    simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
             
-            raise NotImplementedError()
+            save_checkpoint = epoch % 5 == (num_epochs - 1) % 5
+            kw["verbose"] = verbose
+            train_result = self.train_epoch(dl_train, **kw)
+            train_loss.extend(train_result.losses)
+            train_acc.append(train_result.accuracy)
+            test_result = self.test_epoch(dl_test, **kw)
+            test_loss.extend(test_result.losses)
+            test_acc.append(test_result.accuracy)
 
             # ========================
 
@@ -282,7 +289,11 @@ class VAETrainer(Trainer):
         x = x.to(self.device)  # Image batch (N,C,H,W)
         # TODO: Train a VAE on one batch.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        x_rec, mu, log_sigma = self.model(x)
+        loss, data_loss, kldiv_loss = self.loss_fn(x, x_rec, mu, log_sigma)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
         # ========================
 
         return BatchResult(loss.item(), 1 / data_loss.item())
@@ -294,7 +305,8 @@ class VAETrainer(Trainer):
         with torch.no_grad():
             # TODO: Evaluate a VAE on one batch.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()    
+            x_rec, mu, log_sigma = self.model.forward(batch)
+            loss, data_loss, kldiv_loss = self.loss_fn(x, x_rec, mu, log_sigma)
             # ========================
 
         return BatchResult(loss.item(), 1 / data_loss.item())
