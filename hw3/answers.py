@@ -22,14 +22,14 @@ def part1_rnn_hyperparams():
     )
     # TODO: Set the hyperparameters to train the model.
     # ====== YOUR CODE: ======
-    hypers["batch_size"] = 100
-    hypers["seq_len"] = 200
-    hypers["h_dim"] = 50
-    hypers["n_layers"] = 20
-    hypers["dropout"] = 0.1
-    hypers["learn_rate"] = 0.01
-    hypers["lr_sched_factor"] = 0.001
-    hypers["lr_sched_patience"] = 0.9
+    hypers["batch_size"] = 256
+    hypers["seq_len"] = 64
+    hypers["h_dim"] = 512
+    hypers["n_layers"] = 3
+    hypers["dropout"] = 0.5
+    hypers["learn_rate"] = 0.001
+    hypers["lr_sched_factor"] = 0.5
+    hypers["lr_sched_patience"] = 2
     # ========================
     return hypers
 
@@ -39,7 +39,8 @@ def part1_generation_params():
     temperature = 0.0001
     # TODO: Tweak the parameters to generate a literary masterpiece.
     # ====== YOUR CODE: ======
-    
+    start_seq = "HAMLET. Verily, thus it be, the essence of existence doth reveal itself "
+    temperature = 0.3
     # ========================
     return start_seq, temperature
 
