@@ -93,6 +93,7 @@ class Trainer(abc.ABC):
             #  - Implement early stopping. This is a very useful and
             #    simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
+            save_checkpoint = epoch % 5 == (num_epochs - 1) % 5
             kw["verbose"] = verbose
             train_result = self.train_epoch(dl_train, **kw)
             train_loss.extend(train_result.losses)
@@ -111,7 +112,7 @@ class Trainer(abc.ABC):
                 )
                 torch.save(saved_state, checkpoint_filename)
                 print(
-                    f"*** Saved checkpoint {checkpoint_filename} " f"at epoch {epoch+1}"
+                    f"*** Saved checkpoint {checkpoint_filename} ", f"at epoch {epoch+1}"
                 )
 
             if post_epoch_fn:
