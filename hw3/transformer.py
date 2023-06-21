@@ -35,8 +35,7 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     # ====== YOUR CODE: ======
     device = q.device
     neg_inifinity = -1e+17
-    def multpli_single_sample_and_head(i_Q_K_tup):    
-        i, Q_K_tup = i_Q_K_tup
+    def multpli_single_sample_and_head(Q_K_tup):
         Q, K = Q_K_tup
         def sparse_multipy(i_q_tup):
             start = max(0, i_q_tup[0] - window_size // 2)
@@ -69,7 +68,6 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
 
 
     return values, attention
-
 
 
 class MultiHeadAttention(nn.Module):
