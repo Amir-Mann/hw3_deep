@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 
 
-
+print("Imported transformer")
 
 
 def sliding_window_attention(q, k, v, window_size, padding_mask=None):
@@ -33,7 +33,38 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     #    (both for tokens that aren't in the window, and for tokens that correspond to padding according to the 'padding mask').
     # Aside from these two rules, you are free to implement the function as you wish. 
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    device = q.device
+    neg_inifinity = -1e+17
+    def multpli_single_sample_and_head(i_Q_K_tup):    
+        i, Q_K_tup = i_Q_K_tup
+        Q, K = Q_K_tup
+        def sparse_multipy(i_q_tup):
+            start = max(0, i_q_tup[0] - window_size // 2)
+            stop = min(i_q_tup[0] + window_size // 2, seq_len) + 1
+            result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(1, seq_len)
+            result[0, start:stop] = torch.matmul(i_q_tup[1],  K[start:stop, :].T)
+            return result            
+        
+        A = tuple(map(sparse_multipy, enumerate(Q)))
+        return torch.concat(A)
+
+    #q = q.reshape(-1, seq_len, embed_dim)
+    #k = k.reshape(-1, seq_len, embed_dim)
+    pre_norm_attention = tuple(map(multpli_single_sample_and_head,
+                                   zip(q.reshape(-1, seq_len, embed_dim), 
+                                       k.reshape(-1, seq_len, embed_dim))))
+    pre_norm_attention = torch.concat(pre_norm_attention).reshape(*q.shape[:-2], seq_len, seq_len)
+    
+    attention = torch.softmax(pre_norm_attention / (embed_dim ** 0.5), dim=-1)
+    if padding_mask != None:
+        if len(q.shape) > 3:
+            padding_shape = (padding_mask.shape[0], 1, padding_mask.shape[1], 1)
+        else:
+            padding_shape = (padding_mask.shape[0], padding_mask.shape[1], 1)
+        padding_mask = padding_mask.reshape(padding_shape)
+        attention = torch.where(padding_mask == 1, torch.zeros_like(attention), attention)
+    values = torch.matmul(attention, v)
+    
     # ========================
 
 
@@ -80,7 +111,7 @@ class MultiHeadAttention(nn.Module):
         # TODO:
         # call the sliding window attention function you implemented
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        values, attention = sliding_window_attention(q, k, v, self.window_size, padding_mask)
         # ========================
 
         values = values.permute(0, 2, 1, 3) # [Batch, SeqLen, Head, Dims]
@@ -162,7 +193,15 @@ class EncoderLayer(nn.Module):
         #   3) Apply a feed-forward layer to the output of step 2, and then apply dropout again.
         #   4) Add a second residual connection and normalize again.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        after_attention = self.self_attn(x, padding_mask)
+        after_attention = self.dropout(after_attention)
+        after_residual1 = x + after_attention
+        after_norm1 = self.norm1(after_residual1)
+        after_feed_forward = self.feed_forward(after_norm1)
+        after_feed_forward = self.dropout(after_feed_forward)
+        after_residual2 = after_norm1 + after_feed_forward
+        after_norm2 = self.norm2(after_residual2)
+        x = after_norm2
         # ========================
         
         return x
