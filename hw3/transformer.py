@@ -53,43 +53,28 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     
     # We iterate and act differently at different charecters in the sequence, so put the seq dimmantion first
     q = q.permute(2, 0, 1, 3) # [SeqLen, Batch, HeadsDim, Dims]
-    if padding_mask is None:
-        def sparse_multiply(i_q_tup): # We will call this function for each charecter in the sequance, across all batches/heads
-            i, Q =  i_q_tup # int, [Batch, HeadsDim, Dims]
-            Q = Q.reshape(batch_size, heads_dim, 1, embed_dim) # [Batch, HeadsDim, 1, Dims]
-            # Only the window would be multiplied
-            start = max(0, i - window_size // 2)
-            stop = min(i + window_size // 2, seq_len) + 1
-            result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(batch_size, heads_dim, 1, seq_len)
-            K = torch.transpose(k[:, :, start:stop, :], -1, -2) 
-            
-            result[:, :, :, start:stop] =  torch.matmul(Q, K) # Batch matrix multiplication
-            return result
+    def sparse_multiply(i_q_tup): # We will call this function for each charecter in the sequance, across all batches/heads
+        i, Q =  i_q_tup # int, [Batch, HeadsDim, Dims]
+        Q = Q.reshape(batch_size, heads_dim, 1, embed_dim) # [Batch, HeadsDim, 1, Dims]
+        # Only the window would be multiplied
+        start = max(0, i - window_size // 2)
+        stop = min(i + window_size // 2, seq_len) + 1
+        result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(batch_size, heads_dim, 1, seq_len)
+        K = torch.transpose(k[:, :, start:stop, :], -1, -2) 
         
-        pre_norm_attention = tuple(map(sparse_multiply, zip(range(seq_len), q))) # Call sparse multiply for each index in the sequance
-        
-    else: # Padding case, much slower and convoluted, run for your life
-        padding_mask = padding_mask.permute(1, 0) # [SeqLen, Batch] again for iteration over charecters
-        def sparse_multiply(i_q_mask_tup): # Seed documentation above
-            i, Q, mask =  i_q_mask_tup # int, [Batch, HeadsDim, Dims], [Batch]
-            Q = Q.reshape(batch_size, heads_dim, 1, embed_dim) # [Batch, HeadsDim, 1, Dims]
-            start = max(0, i - window_size // 2)
-            stop = min(i + window_size // 2, seq_len) + 1
-            result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(batch_size, heads_dim, 1, seq_len)
-            def mask_multiply(batch_i): # For skipping masked calculations
-                if mask[batch_i] == 1: # Skip rows that should't be computed
-                    return
-                K = k[batch_i, :, start:stop, :]
-                temp_padding = padding_mask[start:stop, batch_i].reshape(1, -1, 1) # Skip cols that should't be computed
-                K = torch.transpose(torch.where((temp_padding * torch.ones_like(K)) == 1, torch.zeros_like(K), K), -1, -2)
-                val = torch.matmul(Q[batch_i, :, :, :], K)
-                result[batch_i, :, :, start:stop] = val
-            tuple(map(mask_multiply, range(batch_size))) # Iterate over each batch, and multply only in places which are unmasked
-            return result
-        pre_norm_attention = tuple(map(sparse_multiply, zip(range(seq_len), q, padding_mask))) #
-        
+        result[:, :, :, start:stop] =  torch.matmul(Q, K) # Batch matrix multiplication
+        return result
+    
+    pre_norm_attention = tuple(map(sparse_multiply, zip(range(seq_len), q))) # Call sparse multiply for each index in the sequance
     # Concetanate the sequance dimention back together
     pre_norm_attention = torch.cat(pre_norm_attention, dim=2) # [Batch, HeadsDim, SeqLen, SeqLen]
+    
+    if padding_mask is not None: 
+        cols_padding = padding_mask.reshape(batch_size, 1, 1, seq_len)
+        rows_padding = padding_mask.reshape(batch_size, 1, seq_len, 1)
+        full_padding = torch.max(cols_padding, rows_padding) * torch.ones((1, heads_dim, 1, 1))
+        pre_norm_attention = torch.where(full_padding == 1, torch.tensor(neg_inifinity, dtype=torch.float, device=device), pre_norm_attention)
+        
     # Apply softmax, for rows which are all -inf replace nans with 0s
     attention = torch.softmax(pre_norm_attention / (embed_dim ** 0.5), dim=-1)
     attention = torch.nan_to_num(attention, 0)
