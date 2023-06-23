@@ -3,20 +3,17 @@ import torch.nn as nn
 import math
 
 
-print("Imported transformer")
-
-
 def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     '''
     Computes the simple sliding window attention from 'Longformer: The Long-Document Transformer'.
     This implementation is meant for multihead attention on batched tensors. It should work for both single and multi-head attention.
-    :param q - the query vectors. #[Batch, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
-    :param k - the key vectors.  #[Batch, *, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
-    :param v - the value vectors.  #[Batch, *, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
+    :param q - the query vectors. #[Batch, SeqLen, Dims] or [Batch, SeqLen, Dims]
+    :param k - the key vectors.  #[Batch, *, SeqLen, Dims] or [Batch, SeqLen, Dims]
+    :param v - the value vectors.  #[Batch, *, SeqLen, Dims] or [Batch, SeqLen, Dims]
     :param window_size - size of sliding window. Must be an even number.
     :param padding_mask - a mask that indicates padding with 0.  #[Batch, SeqLen]
-    :return values - the output values. #[Batch, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
-    :return attention - the attention weights. #[Batch, SeqLen, SeqLen] or [Batch, num_heads, SeqLen, SeqLen]
+    :return values - the output values. #[Batch, *, SeqLen, Dims] or [Batch, SeqLen, Dims]
+    :return attention - the attention weights. #[Batch, *, SeqLen, SeqLen] or [Batch, SeqLen, SeqLen]
     '''
     assert window_size%2 == 0, "window size must be an even number"
     seq_len = q.shape[-2]
@@ -34,36 +31,80 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     # Aside from these two rules, you are free to implement the function as you wish. 
     # ====== YOUR CODE: ======
     device = q.device
-    neg_inifinity = -1e+17
-    def multpli_single_sample_and_head(Q_K_tup):
-        Q, K = Q_K_tup
-        def sparse_multipy(i_q_tup):
-            start = max(0, i_q_tup[0] - window_size // 2)
-            stop = min(i_q_tup[0] + window_size // 2, seq_len) + 1
-            result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(1, seq_len)
-            result[0, start:stop] = torch.matmul(i_q_tup[1],  K[start:stop, :].T)
-            return result            
-        
-        A = tuple(map(sparse_multipy, enumerate(Q)))
-        return torch.concat(A)
+    neg_inifinity = float("-inf")
 
-    #q = q.reshape(-1, seq_len, embed_dim)
-    #k = k.reshape(-1, seq_len, embed_dim)
-    pre_norm_attention = tuple(map(multpli_single_sample_and_head,
-                                   zip(q.reshape(-1, seq_len, embed_dim), 
-                                       k.reshape(-1, seq_len, embed_dim))))
-    pre_norm_attention = torch.concat(pre_norm_attention).reshape(*q.shape[:-2], seq_len, seq_len)
-    
-    attention = torch.softmax(pre_norm_attention / (embed_dim ** 0.5), dim=-1)
-    if padding_mask != None:
-        if len(q.shape) > 3:
-            padding_shape = (padding_mask.shape[0], 1, padding_mask.shape[1], 1)
+    no_heads_dim = len(q.shape) == 3 # Boolen
+    if no_heads_dim:
+        heads_dim = 1 # set fake head dim for unified code
+        q = q.reshape(batch_size, heads_dim, seq_len, embed_dim)
+        k = k.reshape(batch_size, heads_dim, seq_len, embed_dim)
+        v = v.reshape(batch_size, heads_dim, seq_len, embed_dim)
+    else:
+        if len(q.shape) > 4: # I don't think this case is needed, but the notation [Batch, *, SeqLen, Dims] is unclear
+            # This section deals with [Batch, hiddendim_1, hiddendim_2, ... , hidden_dim_k, SeqLen, Dims]
+            # Unifing them into a single dimention, it will be expended before return
+            origin_shape = q.shape
+            q = q.reshape(batch_size, -1, seq_len, embed_dim)
+            k = k.reshape(batch_size, -1, seq_len, embed_dim)
+            v = v.reshape(batch_size, -1, seq_len, embed_dim)
         else:
-            padding_shape = (padding_mask.shape[0], padding_mask.shape[1], 1)
-        padding_mask = padding_mask.reshape(padding_shape)
-        attention = torch.where(padding_mask == 1, torch.zeros_like(attention), attention)
-    values = torch.matmul(attention, v)
+            origin_shape = None
+        heads_dim = q.shape[1]
     
+    # We iterate and act differently at different charecters in the sequence, so put the seq dimmantion first
+    q = q.permute(2, 0, 1, 3) # [SeqLen, Batch, HeadsDim, Dims]
+    if padding_mask is None:
+        def sparse_multiply(i_q_tup): # We will call this function for each charecter in the sequance, across all batches/heads
+            i, Q =  i_q_tup # int, [Batch, HeadsDim, Dims]
+            Q = Q.reshape(batch_size, heads_dim, 1, embed_dim) # [Batch, HeadsDim, 1, Dims]
+            # Only the window would be multiplied
+            start = max(0, i - window_size // 2)
+            stop = min(i + window_size // 2, seq_len) + 1
+            result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(batch_size, heads_dim, 1, seq_len)
+            K = torch.transpose(k[:, :, start:stop, :], -1, -2) 
+            
+            result[:, :, :, start:stop] =  torch.matmul(Q, K) # Batch matrix multiplication
+            return result
+        
+        pre_norm_attention = tuple(map(sparse_multiply, zip(range(seq_len), q))) # Call sparse multiply for each index in the sequance
+        
+    else: # Padding case, much slower and convoluted, run for your life
+        padding_mask = padding_mask.permute(1, 0) # [SeqLen, Batch] again for iteration over charecters
+        def sparse_multiply(i_q_mask_tup): # Seed documentation above
+            i, Q, mask =  i_q_mask_tup # int, [Batch, HeadsDim, Dims], [Batch]
+            Q = Q.reshape(batch_size, heads_dim, 1, embed_dim) # [Batch, HeadsDim, 1, Dims]
+            start = max(0, i - window_size // 2)
+            stop = min(i + window_size // 2, seq_len) + 1
+            result = torch.FloatTensor([[neg_inifinity]], device=device).repeat(batch_size, heads_dim, 1, seq_len)
+            def mask_multiply(batch_i): # For skipping masked calculations
+                if mask[batch_i] == 1: # Skip rows that should't be computed
+                    return
+                K = k[batch_i, :, start:stop, :]
+                temp_padding = padding_mask[start:stop, batch_i].reshape(1, -1, 1) # Skip cols that should't be computed
+                K = torch.transpose(torch.where((temp_padding * torch.ones_like(K)) == 1, torch.zeros_like(K), K), -1, -2)
+                val = torch.matmul(Q[batch_i, :, :, :], K)
+                result[batch_i, :, :, start:stop] = val
+            tuple(map(mask_multiply, range(batch_size))) # Iterate over each batch, and multply only in places which are unmasked
+            return result
+        pre_norm_attention = tuple(map(sparse_multiply, zip(range(seq_len), q, padding_mask))) #
+        
+    # Concetanate the sequance dimention back together
+    pre_norm_attention = torch.cat(pre_norm_attention, dim=2) # [Batch, HeadsDim, SeqLen, SeqLen]
+    # Apply softmax, for rows which are all -inf replace nans with 0s
+    attention = torch.softmax(pre_norm_attention / (embed_dim ** 0.5), dim=-1)
+    attention = torch.nan_to_num(attention, 0)
+    # Calculate values
+    values = torch.matmul(attention, v) 
+    
+    if no_heads_dim:
+        # Remove the synthetic heads dim 
+        attention = attention.reshape(batch_size, seq_len, seq_len)
+        values = values.reshape(batch_size, seq_len, embed_dim)
+    elif origin_shape is not None: # The weird case where len(shape) > 4, split the multiple "heads dim" back to the hidden dims
+        dest_shape = list(origin_shape[:-2]) + [seq_len, seq_len]
+        attention = attention.reshape(*dest_shape)
+        values = values.reshape(*origin_shape)
+        
     # ========================
 
 
