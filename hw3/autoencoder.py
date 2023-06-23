@@ -22,7 +22,7 @@ class EncoderCNN(nn.Module):
         all_channels = [in_channels] + [64, 128, 256] + [out_channels]
         
         for (in_chans, out_chans) in (zip(all_channels, all_channels[1:])):
-            modules.append(nn.Conv2d(in_chans, out_chans, kernel_size=5, stride=1, padding=2))
+            modules.append(nn.Conv2d(in_chans, out_chans, kernel_size=5, stride=2, padding=2))
             modules.append(nn.BatchNorm2d(out_chans))
             modules.append(nn.ReLU())
         # ========================
@@ -51,7 +51,7 @@ class DecoderCNN(nn.Module):
         all_channels = [in_channels] + [256, 128, 64] + [out_channels]
         
         for (in_chans, out_chans) in (zip(all_channels, all_channels[1:])):
-            modules.append(nn.ConvTranspose2d(in_chans, out_chans, kernel_size=5, stride=1, padding=2))
+            modules.append(nn.ConvTranspose2d(in_chans, out_chans, kernel_size=5, stride=2, padding=2, output_padding=1))
             modules.append(nn.BatchNorm2d(out_chans))
             modules.append(nn.ReLU())
         # ========================
@@ -144,7 +144,7 @@ class VAE(nn.Module):
             #    Instead of sampling from N(psi(z), sigma2 I), we'll just take
             #    the mean, i.e. psi(z).
             # ====== YOUR CODE: ======
-            latent_space_samples = torch.randn(n, self.z_dim)
+            latent_space_samples = torch.randn((n, self.z_dim), device=device)
             samples = self.decode(latent_space_samples)
             # ========================
 

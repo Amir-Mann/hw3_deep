@@ -305,7 +305,7 @@ class VAETrainer(Trainer):
         with torch.no_grad():
             # TODO: Evaluate a VAE on one batch.
             # ====== YOUR CODE: ======
-            x_rec, mu, log_sigma = self.model.forward(batch)
+            x_rec, mu, log_sigma = self.model.forward(x)
             loss, data_loss, kldiv_loss = self.loss_fn(x, x_rec, mu, log_sigma)
             # ========================
 
