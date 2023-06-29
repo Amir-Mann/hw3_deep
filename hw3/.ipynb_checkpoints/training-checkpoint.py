@@ -80,7 +80,6 @@ class Trainer(abc.ABC):
                 self.model.load_state_dict(saved_state["model_state"])
 
         for epoch in range(num_epochs):
-            save_checkpoint = False
             verbose = False  # pass this to train/test_epoch.
             if epoch % print_every == 0 or epoch == num_epochs - 1:
                 verbose = True
@@ -328,19 +327,10 @@ class TransformerEncoderTrainer(Trainer):
         # TODO:
         #  fill out the training loop.
         # ====== YOUR CODE: ======
-        self.optimizer.zero_grad()
-        
-        label = label.reshape(-1, 1)
-        logits = self.model.forward(input_ids, attention_mask)
-        print(f"\n{self.loss_fn=}\n{label=}\n{logits=}\n")
-        loss = self.loss_fn(label, logits)
-        
-        loss.backward()
-        self.optimizer.step()
-        
-        predictions = torch.round(torch.sigmoid(logits))
-        num_correct = (predictions == label).sum()
+        raise NotImplementedError()
         # ========================
+        
+        
         
         return BatchResult(loss.item(), num_correct.item())
         
@@ -356,11 +346,7 @@ class TransformerEncoderTrainer(Trainer):
             # TODO:
             #  fill out the testing loop.
             # ====== YOUR CODE: ======
-            label = label.reshape(-1, 1)
-            logits = self.model.forward(input_ids, attention_mask)
-            loss = self.loss_fn(label, logits)
-            predictions = torch.round(torch.sigmoid(logits))
-            num_correct = (predictions == label).sum()
+            raise NotImplementedError()
             # ========================
 
             

@@ -39,8 +39,7 @@ def part1_generation_params():
     temperature = 0.0001
     # TODO: Tweak the parameters to generate a literary masterpiece.
     # ====== YOUR CODE: ======
-    start_seq = """ACT I.
-    HAMLET. Verily, thus it be, the essence of existence doth reveal itself """
+    start_seq = "HAMLET. Verily, thus it be, the essence of existence doth reveal itself "
     temperature = 0.3
     # ========================
     return start_seq, temperature
@@ -132,13 +131,7 @@ def part3_transformer_encoder_hyperparams():
 
     # TODO: Tweak the hyperparameters to train the transformer encoder.
     # ====== YOUR CODE: ======
-    hypers["embed_dim"] = 64
-    hypers["num_heads"] = 2
-    hypers["num_layers"] = 2
-    hypers["hidden_dim"] = 64
-    hypers["window_size"] = 16
-    hypers["droupout"] = 0.2
-    hypers["lr"] = 0.001
+    
     # ========================
     return hypers
 
