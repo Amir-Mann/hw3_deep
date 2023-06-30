@@ -50,10 +50,12 @@ class DecoderCNN(nn.Module):
         # ====== YOUR CODE: ======
         all_channels = [in_channels] + [256, 128, 64] + [out_channels]
         
-        for (in_chans, out_chans) in (zip(all_channels, all_channels[1:])):
+        for (in_chans, out_chans) in (zip(all_channels, all_channels[1:-1])):
             modules.append(nn.ConvTranspose2d(in_chans, out_chans, kernel_size=5, stride=2, padding=2, output_padding=1))
             modules.append(nn.BatchNorm2d(out_chans))
             modules.append(nn.ReLU())
+        modules.append(nn.ConvTranspose2d(all_channels[-2], all_channels[-1], kernel_size=5, stride=2, padding=2, output_padding=1))
+        modules.append(nn.BatchNorm2d(all_channels[-1]))
         # ========================
         self.cnn = nn.Sequential(*modules)
 

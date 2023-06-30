@@ -102,6 +102,7 @@ class Trainer(abc.ABC):
             test_result = self.test_epoch(dl_test, **kw)
             test_loss.extend(test_result.losses)
             test_acc.append(test_result.accuracy)
+            
 
             # ========================
 
@@ -358,14 +359,19 @@ class FineTuningTrainer(Trainer):
     def train_batch(self, batch) -> BatchResult:
         
         input_ids = batch["input_ids"].to(self.device)
-        attention_masks = batch["attention_mask"]
-        labels= batch["label"]
+        attention_masks = batch["attention_mask"].to(self.device)
+        labels= batch["label"].to(self.device)
         # TODO:
         #  fill out the training loop.
         # ====== YOUR CODE: ======
-
-        raise NotImplementedError()
-        
+        self.model.to(self.device)
+        scores = self.model.forward(input_ids, attention_mask=attention_masks, labels=labels)
+        loss = scores.loss
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        _, y_pred = torch.max(scores.logits, dim=1)
+        num_correct = (y_pred == labels).sum().item()
         # ========================
         
         return BatchResult(loss, num_correct)
@@ -373,13 +379,16 @@ class FineTuningTrainer(Trainer):
     def test_batch(self, batch) -> BatchResult:
         
         input_ids = batch["input_ids"].to(self.device)
-        attention_masks = batch["attention_mask"]
-        labels= batch["label"]
+        attention_masks = batch["attention_mask"].to(self.device)
+        labels= batch["label"].to(self.device)
         
         with torch.no_grad():
             # TODO:
             #  fill out the training loop.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            scores = self.model(input_ids, attention_mask=attention_masks, labels=labels)
+            loss = scores.loss
+            _, y_pred = torch.max(scores.logits, dim=1)
+            num_correct = (y_pred == labels).sum().item()
             # ========================
         return BatchResult(loss, num_correct)
