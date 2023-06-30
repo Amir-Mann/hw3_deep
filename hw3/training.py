@@ -100,6 +100,8 @@ class Trainer(abc.ABC):
             test_result = self.test_epoch(dl_test, **kw)
             test_loss.extend(test_result.losses)
             test_acc.append(test_result.accuracy)
+            if best_acc is None or test_acc > best_acc:
+                best_acc = test_acc
             # ========================
 
             # Save model checkpoint if requested
