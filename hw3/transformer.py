@@ -31,7 +31,7 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     # Aside from these two rules, you are free to implement the function as you wish. 
     # ====== YOUR CODE: ======
     device = q.device
-    neg_inifinity = -9e15 # float("-inf") #
+    neg_inifinity = float("-inf") #
 
     no_heads_dim = len(q.shape) == 3 # Boolen
     if no_heads_dim:
@@ -63,7 +63,7 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     if padding_mask is not None: 
         cols_padding = padding_mask.reshape(batch_size, 1, 1, seq_len)
         rows_padding = padding_mask.reshape(batch_size, 1, seq_len, 1)
-        full_padding = torch.max(cols_padding, rows_padding) * torch.ones((1, heads_dim, 1, 1))
+        full_padding = torch.min(cols_padding, rows_padding) * torch.ones((1, heads_dim, 1, 1))
         pre_norm_attention = torch.where(full_padding != 1, torch.tensor(neg_inifinity, dtype=torch.float, device=device), pre_norm_attention)
         
     # Apply softmax, for rows which are all -inf replace nans with 0s
@@ -213,7 +213,7 @@ class EncoderLayer(nn.Module):
         step2 = x + step1
         step2 = self.norm1(step2)
         step3 = self.feed_forward(step2)
-        #step3 = self.dropout(step3)
+        step3 = self.dropout(step3)
         step4 = step2 + step3
         x = self.norm2(step4)
         # ========================
@@ -269,7 +269,7 @@ class Encoder(nn.Module):
         encoded = embedded
         for layer in self.encoder_layers:
             encoded = layer(encoded, padding_mask)
-        output = self.classification_mlp(encoded)[:, 0, :]
+        output = self.classification_mlp(encoded)[:, 0, 0]
         # ========================
         
         

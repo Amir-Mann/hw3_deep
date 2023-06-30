@@ -330,10 +330,9 @@ class TransformerEncoderTrainer(Trainer):
         # ====== YOUR CODE: ======
         self.optimizer.zero_grad()
         
-        label = label.reshape(-1, 1)
         logits = self.model.forward(input_ids, attention_mask)
-        print(f"\n{self.loss_fn=}\n{label=}\n{logits=}\n")
-        loss = self.loss_fn(label, logits)
+        #print(f"\n{self.loss_fn=}\n{label=}\n{logits=}\n")
+        loss = self.loss_fn(logits, label)
         
         loss.backward()
         self.optimizer.step()
@@ -356,9 +355,8 @@ class TransformerEncoderTrainer(Trainer):
             # TODO:
             #  fill out the testing loop.
             # ====== YOUR CODE: ======
-            label = label.reshape(-1, 1)
             logits = self.model.forward(input_ids, attention_mask)
-            loss = self.loss_fn(label, logits)
+            loss = self.loss_fn(logits, label)
             predictions = torch.round(torch.sigmoid(logits))
             num_correct = (predictions == label).sum()
             # ========================
