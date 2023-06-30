@@ -31,7 +31,7 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     # Aside from these two rules, you are free to implement the function as you wish. 
     # ====== YOUR CODE: ======
     device = q.device
-    neg_inifinity = float("-inf") # -9e15 #
+    neg_inifinity = -9e15 # float("-inf") #
 
     no_heads_dim = len(q.shape) == 3 # Boolen
     if no_heads_dim:
@@ -52,15 +52,12 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
         heads_dim = q.shape[1]
     
     pre_norm_attention = torch.FloatTensor([[neg_inifinity]], device=device).repeat(batch_size, heads_dim, seq_len, seq_len)
-    def sparse_multiply(i): # We will call this function for each charecter in the sequance, across all batches/heads
-        # Only the window would be multiplied
-        start = max(0, i - window_size // 2)
-        stop = min(i + window_size // 2, seq_len - 1) + 1
-        # Batch matrix multiplication
-        pre_norm_attention[:, :, i:i+1, start:stop] = torch.matmul(q[:, :, i:i+1, :],
-                                                                   torch.transpose(k[:, :, start:stop, :], -1, -2))
     
-    list(map(sparse_multiply, range(seq_len))) # Call sparse multiply for each index in the sequance
+    row_idxs = [r for r in range(seq_len) for c in range(max(0, r - window_size // 2), min(r + window_size // 2, seq_len - 1) + 1)]
+    col_idxs = [c for r in range(seq_len) for c in range(max(0, r - window_size // 2), min(r + window_size // 2, seq_len - 1) + 1)]
+    
+    pre_norm_attention[:, :, row_idxs, col_idxs] = (q[:, :, row_idxs, :] * k[:, :, col_idxs, :]).sum(-1)
+    
     
     # Apply Padding
     if padding_mask is not None: 
