@@ -129,18 +129,43 @@ def part3_transformer_encoder_hyperparams():
 
 
 
-
 part3_q1 = r"""
 **Your answer:**
+
+Each encoder layer allows for represenetation of a certain token only in relation to the tokens that are
+in $sliding-window-size * 0.5$ distance from it. That means that if we stack multiple encoder layers on top of each other, 
+an arbitrary token "x" has context of farther tokens, because after the first layer the
+neighbors tokens of "x" have context of their neighbors, that are not reachable from "x" directly
+(because their distance from "x" is bigger than the sliding window size), and this context would
+keep increasing like so at each layer.
+
+Generally we can state that for $L$ layers each token representation has information from $1 + L\cdot w$ other tokens.
+
+For example, assume the sliding window size is 4, and we have a series of 20 tokens.
+After performing 1 encoder layer, the token in index 0 has context of the tokens in 
+index smaller/equal to 3. And 3 has context of those in indices between 1 to 5.
+So after the second encoder layer, the representation of the token at index 0 has context of the representation of the 
+token at index 3, that already encodes the information of token at index 5. So, we can say that now the representation of the
+token at index 0 has context of the token at index 5. 
+Performing this process multiple times results in a broader context in the final layer.
 
 """
 
 part3_q2 = r"""
 **Your answer:**
+We propose the “random and sliding windowed attention” which works as follows:
+
+Each time you calculate attention matrix $A\in \mathbb{R} ^{n_X n}$ , calculate it at the $w + 1$ main diagonals
+(like we implemented) and also random $n \cdot w$ indices in $A$ and calculate them.
+
+This would propagate information throughout the sequence globally. Like in the previous question, after $L$ layers
+each representation would have for certain context of $L \cdot w$ tokens, but for each token outside it’s certain
+context, the probability of the token not being inside the context decreases exponentialy in L, the probability being
+$(1-\frac{w}{n})^{context_{L-1}}$ where $ context_{L-1}$ is the amount of representations which token is in their context 
+at last layer.
 
 
 """
-
 
 part4_q1 = r"""
 **Your answer:**
