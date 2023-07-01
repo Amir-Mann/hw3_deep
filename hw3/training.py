@@ -386,7 +386,7 @@ class FineTuningTrainer(Trainer):
         num_correct = (y_pred == labels).sum().item()
         # ========================
         
-        return BatchResult(loss, num_correct)
+        return BatchResult(loss.item(), num_correct)
         
     def test_batch(self, batch) -> BatchResult:
         
@@ -399,7 +399,7 @@ class FineTuningTrainer(Trainer):
             #  fill out the training loop.
             # ====== YOUR CODE: ======
             scores = self.model(input_ids, attention_mask=attention_masks, labels=labels)
-            loss = scores.loss
+            loss = scores.loss.item()
             _, y_pred = torch.max(scores.logits, dim=1)
             num_correct = (y_pred == labels).sum().item()
             # ========================
