@@ -179,7 +179,16 @@ def generate_from_model(model, start_sequence, n_chars, char_maps, T):
     #  necessary for this. Best to disable tracking for speed.
     #  See torch.no_grad().
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    with torch.no_grad():
+        x = chars_to_onehot(start_sequence, char_to_idx)
+        h_s = None
+        for i in range(len(start_sequence), n_chars):
+            x = x.reshape(1, *x.shape)
+            y, h_s = model(x.to(dtype=torch.float, device=device), h_s)
+            probs = hot_softmax(y[0, -1, :], dim=0, temperature=T)
+            next_char = idx_to_char[torch.multinomial(probs, 1).item()]
+            out_text += next_char
+            x = chars_to_onehot(next_char, char_to_idx)
     # ========================
 
     return out_text

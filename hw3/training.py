@@ -93,7 +93,6 @@ class Trainer(abc.ABC):
             #  - Implement early stopping. This is a very useful and
             #    simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
-            
             save_checkpoint = epoch % 5 == (num_epochs - 1) % 5
             kw["verbose"] = verbose
             train_result = self.train_epoch(dl_train, **kw)
@@ -102,8 +101,8 @@ class Trainer(abc.ABC):
             test_result = self.test_epoch(dl_test, **kw)
             test_loss.extend(test_result.losses)
             test_acc.append(test_result.accuracy)
-            
-
+            if best_acc is None or test_acc > best_acc:
+                best_acc = test_acc
             # ========================
 
             # Save model checkpoint if requested
@@ -231,9 +230,7 @@ class RNNTrainer(Trainer):
     def train_epoch(self, dl_train: DataLoader, **kw):
         # TODO: Implement modifications to the base method, if needed.
         # ====== YOUR CODE: ======
-        
-        self.hidden_state = None    
-            
+        self.hidden_state = None
         # ========================
         return super().train_epoch(dl_train, **kw)
 
@@ -258,7 +255,18 @@ class RNNTrainer(Trainer):
         #  - Update params
         #  - Calculate number of correct char predictions
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.optimizer.zero_grad()
+        
+        #print(f"Forwording")
+        y_scores, self.hidden_state = self.model(x, self.hidden_state)
+        loss = self.loss_fn(y_scores.view(seq_len, -1), y.view(-1))
+        
+        loss.backward()
+        self.optimizer.step()
+        
+        num_correct = torch.sum(torch.argmax(y_scores, dim=-1) == y)
+        self.hidden_state = self.hidden_state.detach()
+        self.hidden_state.require_grad = True
         # ========================
 
         # Note: scaling num_correct by seq_len because each sample has seq_len
@@ -278,7 +286,11 @@ class RNNTrainer(Trainer):
             #  - Loss calculation
             #  - Calculate number of correct predictions
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            y_scores, self.hidden_state = self.model(x, self.hidden_state)
+            probas = torch.softmax(y_scores, dim=0)
+            loss = self.loss_fn(y, probas)
+            
+            num_correct = torch.sum(torch.argmax(probas, dim=0) == y)
             # ========================
 
         return BatchResult(loss.item(), num_correct.item() / seq_len)
