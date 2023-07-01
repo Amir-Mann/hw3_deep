@@ -51,7 +51,7 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
             origin_shape = None
         heads_dim = q.shape[1]
     
-    pre_norm_attention = torch.FloatTensor([[neg_inifinity]], device=device).repeat(batch_size, heads_dim, seq_len, seq_len)
+    pre_norm_attention = torch.tensor([neg_inifinity], device=device).repeat(batch_size, heads_dim, seq_len, seq_len)
     
     row_idxs = [r for r in range(seq_len) for c in range(max(0, r - window_size // 2), min(r + window_size // 2, seq_len - 1) + 1)]
     col_idxs = [c for r in range(seq_len) for c in range(max(0, r - window_size // 2), min(r + window_size // 2, seq_len - 1) + 1)]
@@ -63,7 +63,7 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     if padding_mask is not None: 
         cols_padding = padding_mask.reshape(batch_size, 1, 1, seq_len)
         rows_padding = padding_mask.reshape(batch_size, 1, seq_len, 1)
-        full_padding = torch.min(cols_padding, rows_padding) * torch.ones((1, heads_dim, 1, 1))
+        full_padding = torch.min(cols_padding, rows_padding) * torch.ones((1, heads_dim, 1, 1), device=device)
         pre_norm_attention = torch.where(full_padding != 1, torch.tensor(neg_inifinity, dtype=torch.float, device=device), pre_norm_attention)
         
     # Apply softmax, for rows which are all -inf replace nans with 0s
