@@ -93,6 +93,7 @@ class Trainer(abc.ABC):
             #  - Implement early stopping. This is a very useful and
             #    simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
+            save_checkpoint = epoch % 5 == (num_epochs - 1) % 5
             kw["verbose"] = verbose
             train_result = self.train_epoch(dl_train, **kw)
             train_loss.extend(train_result.losses)
@@ -113,7 +114,7 @@ class Trainer(abc.ABC):
                 )
                 torch.save(saved_state, checkpoint_filename)
                 print(
-                    f"*** Saved checkpoint {checkpoint_filename} " f"at epoch {epoch+1}"
+                    f"*** Saved checkpoint {checkpoint_filename} ", f"at epoch {epoch+1}"
                 )
 
             if post_epoch_fn:
@@ -256,9 +257,8 @@ class RNNTrainer(Trainer):
         # ====== YOUR CODE: ======
         self.optimizer.zero_grad()
         
-        #print(f"Forwording")
         y_scores, self.hidden_state = self.model(x, self.hidden_state)
-        loss = self.loss_fn(y_scores.view(seq_len, -1), y.view(-1))
+        loss = self.loss_fn(y_scores.view(-1, y_scores.shape[-1]), y.view(-1))
         
         loss.backward()
         self.optimizer.step()
@@ -286,10 +286,8 @@ class RNNTrainer(Trainer):
             #  - Calculate number of correct predictions
             # ====== YOUR CODE: ======
             y_scores, self.hidden_state = self.model(x, self.hidden_state)
-            probas = torch.softmax(y_scores, dim=0)
-            loss = self.loss_fn(y, probas)
-            
-            num_correct = torch.sum(torch.argmax(probas, dim=0) == y)
+            loss = self.loss_fn(y_scores.view(-1, y_scores.shape[-1]), y.view(-1))
+            num_correct = torch.sum(torch.argmax(y_scores, dim=-1) == y)
             # ========================
 
         return BatchResult(loss.item(), num_correct.item() / seq_len)
