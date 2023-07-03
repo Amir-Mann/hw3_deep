@@ -39,22 +39,60 @@ def part1_generation_params():
 
 part1_q1 = r"""
 **Your answer:**
+The first one is practical – The entire text is very large an loading it in its entirety onto the GPU memory is might
+not be possible or is slow if possible. Similarly, the computational graph at each loss / gradients calculation and 
+step would be very large.
 
+The second reason is that with very large text the gradients would vanish/explode between characters with big gaps,
+making the optimization task much harder.
+
+Another reason is because of all the usual reasons we split the data in SGD – We wish to calculate the loss a lot
+of times each epoch, updating the model at each step. This allows faster convergence, a higher chance of reaching
+good minimums etc.
 """
 
 part1_q2 = r"""
 **Your answer:**
+This is due to the structure of the model – the model learns weight which based on the input change what information 
+is passed across the sequence length, and so, if some context is not changed the model wouldn’t change it, no matter
+how long the sequence it is fed.
 
+For example in our task, if the model has some values in $h$ corresponding to which character is talking, and this 
+context won’t change until a name with capital letters would be introduced followed by “:” the model might not forget
+those values of $h$ for as long as it sees (or predicts) outputs of stage directions represented by capital letters, 
+even if the sequence length had passed.
 """
 
 part1_q3 = r"""
 **Your answer:**
+We are not shuffling the order of batch when training because the order of them is important for the hidden state 
+variable the model keeps. Even if we don’t propagate loss through batches the model is still better trained when being 
+fed his hidden state on the last character of the last batch.
 
+The alternative (shuffling) is to make the model’s learning task simply harder by feeding it unrelated hidden 
+state at the beginning of batch. This would also hurt the long-term memory of the model since it would be incentivized 
+to forget the context quickly between batches.
 """
 
 part1_q4 = r"""
 **Your answer:**
+1.   We lower the temperature for sampling to a value below 1 because we wish to a more distinct loss for our model.
+Meaning that for prediction with the right character having the biggest score we wish to get low losses, and for
+prediction with the right character having a smaller score we won’t the loss to be larger.
 
+      This is especially important in character predictions, where a lot of options might be decent and so we wish 
+      to have sharper losses specifically when the model is uncertain about two characters, for example “h” or “o” 
+      after the letters “ t”, both options are good but only one is the right prediction in the current context and 
+      we wish our model to learn it – changing a lot when the model is wrong, even if by a slight amount and not 
+      caring that much if the model is correct even if by a large amount.
+
+2.   When the temperature is very high, we get uniform distribution of the after-softmax probabilities, regardless 
+of the scores, making the model nearly impossible to optimize, because the would be nearly constant at any score
+values, making it’s gradient nearly 0.
+
+3.    When the temperature is very low, we get “onehot” of the argmax score as the after-softmax probabilities, 
+no matter what the scores are. Again in a small area around the current model parameters the probability and therefor 
+the loss are nearly constants, making the gradient nearly 0 and the model nearly impossible to optimize.
 
 """
 # ==============
