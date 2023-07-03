@@ -23,9 +23,9 @@ def char_maps(text: str):
     #  It's best if you also sort the chars before assigning indices, so that
     #  they're in lexical order.
     # ====== YOUR CODE: ======
-    my_set = set(text)
-    char_to_idx = {char : index for index, char in enumerate(my_set)}
-    idx_to_char = {index : char for index, char in enumerate(my_set)}
+    ordered_chars = sorted(list(set(text)))
+    char_to_idx = {char : index for index, char in enumerate(ordered_chars)}
+    idx_to_char = {index : char for index, char in enumerate(ordered_chars)}
     # ========================
     return char_to_idx, idx_to_char
 
@@ -64,14 +64,9 @@ def chars_to_onehot(text: str, char_to_idx: dict) -> Tensor:
     """
     # TODO: Implement the embedding.
     # ====== YOUR CODE: ======
-    index_list = list(map(char_to_idx.get, text))
-    index_tensor = torch.LongTensor(index_list)
-    index_tensor = index_tensor.reshape(-1, 1) # Reshape y to (N,1)
-    zeros = torch.zeros(size=(len(index_tensor), len(char_to_idx.keys())), dtype=torch.int8) # (N,C)
-    ones = torch.ones_like(index_tensor, dtype=torch.int8)
+    index_list = list(map(char_to_idx.get, text)) # Maybe slow, maybe needs device
     
-    # scatter: put items from 'src' into 'dest' at indices correspondnig to 'index' along 'dim'
-    result = torch.scatter(zeros, dim=1, index=index_tensor, src=ones)
+    result = torch.nn.functional.one_hot(torch.tensor(index_list), len(char_to_idx.keys())).to(dtype=torch.int8)
     # ========================
     return result
 
@@ -88,10 +83,8 @@ def onehot_to_chars(embedded_text: Tensor, idx_to_char: dict) -> str:
     """
     # TODO: Implement the reverse-embedding.
     # ====== YOUR CODE: ======
-    vector = torch.CharTensor(list(range(len(idx_to_char.keys()))))
-    indices = torch.matmul(embedded_text, vector)
+    indices = torch.argmax(embedded_text, dim=1)
     indices = map(int, indices)
-    #print(list(map(idx_to_char.get, indices)))
     result = "".join(map(idx_to_char.get, indices))
     # ========================
     return result
@@ -122,9 +115,8 @@ def chars_to_labelled_samples(text: str, char_to_idx: dict, seq_len: int, device
     #  Note that no explicit loops are required to implement this function.
     # ====== YOUR CODE: ======
     text = text[:(len(text) - 1) - (len(text) - 1) % seq_len + 1] 
-    embedded = chars_to_onehot(text, char_to_idx)
-    vector = torch.CharTensor(list(range(len(char_to_idx.keys()))))
-    labels = torch.matmul(embedded[1:, :], vector)
+    embedded = chars_to_onehot(text, char_to_idx).to(device=device)
+    labels = torch.argmax(embedded[1:], dim=1)
     labels = labels.reshape(-1, seq_len)
     samples = embedded[:-1, :].reshape(-1, seq_len, len(char_to_idx.keys()))
     # ========================
@@ -284,11 +276,12 @@ class MultilayerGRU(nn.Module):
                 "gtanh": nn.Tanh()
             }
             if dropout > 0:
-                layer_dict["dropout"] = nn.Dropout2d()
+                layer_dict["dropout"] = nn.Dropout(dropout)
             self.layer_params.append(layer_dict)
             for name, module in layer_dict.items():
                 self.add_module(name + str(layer), module)
         self.Why = nn.Linear(self.h_dim, self.out_dim, bias=True)
+        self.add_module("Why", self.Why)
         # ========================
 
     def forward(self, input: Tensor, hidden_state: Tensor = None):
@@ -333,11 +326,11 @@ class MultilayerGRU(nn.Module):
                 h = layer_states[k]
                 z = layer_dict["zsigmoid"](layer_dict["Wxz"](x) + layer_dict["Whz"](h))
                 r = layer_dict["rsigmoid"](layer_dict["Wxr"](x) + layer_dict["Whr"](h))
-                g = layer_dict["gtanh"](layer_dict["Wxg"](x) + layer_dict["Whr"](r * h))
+                g = layer_dict["gtanh"](layer_dict["Wxg"](x) + layer_dict["Whg"](r * h))
                 x = z * h + (1 - z) * g
+                layer_states[k] = x
                 if "dropout" in layer_dict:
                     x = layer_dict["dropout"](x)
-                layer_states[k] = x
             ys.append(self.Why(x))
         layer_output = torch.stack(ys, dim=1)
         hidden_state = torch.stack(layer_states, dim=1)
