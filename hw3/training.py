@@ -299,7 +299,11 @@ class VAETrainer(Trainer):
         x = x.to(self.device)  # Image batch (N,C,H,W)
         # TODO: Train a VAE on one batch.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        x_rec, mu, log_sigma = self.model(x)
+        loss, data_loss, kldiv_loss = self.loss_fn(x, x_rec, mu, log_sigma)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
         # ========================
 
         return BatchResult(loss.item(), 1 / data_loss.item())
@@ -311,7 +315,8 @@ class VAETrainer(Trainer):
         with torch.no_grad():
             # TODO: Evaluate a VAE on one batch.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()    
+            x_rec, mu, log_sigma = self.model.forward(x)
+            loss, data_loss, kldiv_loss = self.loss_fn(x, x_rec, mu, log_sigma)
             # ========================
 
         return BatchResult(loss.item(), 1 / data_loss.item())
@@ -374,28 +379,36 @@ class FineTuningTrainer(Trainer):
     def train_batch(self, batch) -> BatchResult:
         
         input_ids = batch["input_ids"].to(self.device)
-        attention_masks = batch["attention_mask"]
-        labels= batch["label"]
+        attention_masks = batch["attention_mask"].to(self.device)
+        labels= batch["label"].to(self.device)
         # TODO:
         #  fill out the training loop.
         # ====== YOUR CODE: ======
-
-        raise NotImplementedError()
-        
+        self.model.to(self.device)
+        scores = self.model.forward(input_ids, attention_mask=attention_masks, labels=labels)
+        loss = scores.loss
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        _, y_pred = torch.max(scores.logits, dim=1)
+        num_correct = (y_pred == labels).sum().item()
         # ========================
         
-        return BatchResult(loss, num_correct)
+        return BatchResult(loss.item(), num_correct)
         
     def test_batch(self, batch) -> BatchResult:
         
         input_ids = batch["input_ids"].to(self.device)
-        attention_masks = batch["attention_mask"]
-        labels= batch["label"]
+        attention_masks = batch["attention_mask"].to(self.device)
+        labels= batch["label"].to(self.device)
         
         with torch.no_grad():
             # TODO:
             #  fill out the training loop.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            scores = self.model(input_ids, attention_mask=attention_masks, labels=labels)
+            loss = scores.loss.item()
+            _, y_pred = torch.max(scores.logits, dim=1)
+            num_correct = (y_pred == labels).sum().item()
             # ========================
         return BatchResult(loss, num_correct)
