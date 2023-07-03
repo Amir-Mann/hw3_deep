@@ -114,7 +114,7 @@ class Trainer(abc.ABC):
                 )
                 torch.save(saved_state, checkpoint_filename)
                 print(
-                    f"*** Saved checkpoint {checkpoint_filename} " f"at epoch {epoch+1}"
+                    f"*** Saved checkpoint {checkpoint_filename} ", f"at epoch {epoch+1}"
                 )
 
             if post_epoch_fn:
@@ -257,9 +257,8 @@ class RNNTrainer(Trainer):
         # ====== YOUR CODE: ======
         self.optimizer.zero_grad()
         
-        #print(f"Forwording")
         y_scores, self.hidden_state = self.model(x, self.hidden_state)
-        loss = self.loss_fn(y_scores.view(seq_len, -1), y.view(-1))
+        loss = self.loss_fn(y_scores.view(-1, y_scores.shape[-1]), y.view(-1))
         
         loss.backward()
         self.optimizer.step()
@@ -287,10 +286,8 @@ class RNNTrainer(Trainer):
             #  - Calculate number of correct predictions
             # ====== YOUR CODE: ======
             y_scores, self.hidden_state = self.model(x, self.hidden_state)
-            probas = torch.softmax(y_scores, dim=0)
-            loss = self.loss_fn(y, probas)
-            
-            num_correct = torch.sum(torch.argmax(probas, dim=0) == y)
+            loss = self.loss_fn(y_scores.view(-1, y_scores.shape[-1]), y.view(-1))
+            num_correct = torch.sum(torch.argmax(y_scores, dim=-1) == y)
             # ========================
 
         return BatchResult(loss.item(), num_correct.item() / seq_len)
@@ -338,10 +335,18 @@ class TransformerEncoderTrainer(Trainer):
         # TODO:
         #  fill out the training loop.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.optimizer.zero_grad()
+        
+        logits = self.model.forward(input_ids, attention_mask)
+        #print(f"\n{self.loss_fn=}\n{label=}\n{logits=}\n")
+        loss = self.loss_fn(logits, label)
+        
+        loss.backward()
+        self.optimizer.step()
+        
+        predictions = torch.round(torch.sigmoid(logits))
+        num_correct = (predictions == label).sum()
         # ========================
-        
-        
         
         return BatchResult(loss.item(), num_correct.item())
         
@@ -357,7 +362,10 @@ class TransformerEncoderTrainer(Trainer):
             # TODO:
             #  fill out the testing loop.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            logits = self.model.forward(input_ids, attention_mask)
+            loss = self.loss_fn(logits, label)
+            predictions = torch.round(torch.sigmoid(logits))
+            num_correct = (predictions == label).sum()
             # ========================
 
             
