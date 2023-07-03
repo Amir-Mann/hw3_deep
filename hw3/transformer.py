@@ -3,20 +3,17 @@ import torch.nn as nn
 import math
 
 
-
-
-
 def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     '''
     Computes the simple sliding window attention from 'Longformer: The Long-Document Transformer'.
     This implementation is meant for multihead attention on batched tensors. It should work for both single and multi-head attention.
-    :param q - the query vectors. #[Batch, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
-    :param k - the key vectors.  #[Batch, *, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
-    :param v - the value vectors.  #[Batch, *, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
+    :param q - the query vectors. #[Batch, SeqLen, Dims] or [Batch, SeqLen, Dims]
+    :param k - the key vectors.  #[Batch, *, SeqLen, Dims] or [Batch, SeqLen, Dims]
+    :param v - the value vectors.  #[Batch, *, SeqLen, Dims] or [Batch, SeqLen, Dims]
     :param window_size - size of sliding window. Must be an even number.
     :param padding_mask - a mask that indicates padding with 0.  #[Batch, SeqLen]
-    :return values - the output values. #[Batch, SeqLen, Dims] or [Batch, num_heads, SeqLen, Dims]
-    :return attention - the attention weights. #[Batch, SeqLen, SeqLen] or [Batch, num_heads, SeqLen, SeqLen]
+    :return values - the output values. #[Batch, *, SeqLen, Dims] or [Batch, SeqLen, Dims]
+    :return attention - the attention weights. #[Batch, *, SeqLen, SeqLen] or [Batch, SeqLen, SeqLen]
     '''
     assert window_size%2 == 0, "window size must be an even number"
     seq_len = q.shape[-2]
@@ -33,12 +30,61 @@ def sliding_window_attention(q, k, v, window_size, padding_mask=None):
     #    (both for tokens that aren't in the window, and for tokens that correspond to padding according to the 'padding mask').
     # Aside from these two rules, you are free to implement the function as you wish. 
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    device = q.device
+    neg_inifinity = float("-inf") #
+
+    no_heads_dim = len(q.shape) == 3 # Boolen
+    if no_heads_dim:
+        heads_dim = 1 # set fake head dim for unified code
+        q = q.reshape(batch_size, heads_dim, seq_len, embed_dim)
+        k = k.reshape(batch_size, heads_dim, seq_len, embed_dim)
+        v = v.reshape(batch_size, heads_dim, seq_len, embed_dim)
+    else:
+        if len(q.shape) > 4: # I don't think this case is needed, but the notation [Batch, *, SeqLen, Dims] is unclear
+            # This section deals with [Batch, hiddendim_1, hiddendim_2, ... , hidden_dim_k, SeqLen, Dims]
+            # Unifing them into a single dimention, it will be expended before return
+            origin_shape = q.shape
+            q = q.reshape(batch_size, -1, seq_len, embed_dim)
+            k = k.reshape(batch_size, -1, seq_len, embed_dim)
+            v = v.reshape(batch_size, -1, seq_len, embed_dim)
+        else:
+            origin_shape = None
+        heads_dim = q.shape[1]
+    
+    pre_norm_attention = torch.tensor([neg_inifinity], device=device).repeat(batch_size, heads_dim, seq_len, seq_len)
+    
+    row_idxs = [r for r in range(seq_len) for c in range(max(0, r - window_size // 2), min(r + window_size // 2, seq_len - 1) + 1)]
+    col_idxs = [c for r in range(seq_len) for c in range(max(0, r - window_size // 2), min(r + window_size // 2, seq_len - 1) + 1)]
+    
+    pre_norm_attention[:, :, row_idxs, col_idxs] = (q[:, :, row_idxs, :] * k[:, :, col_idxs, :]).sum(-1)
+    
+    
+    # Apply Padding
+    if padding_mask is not None: 
+        cols_padding = padding_mask.reshape(batch_size, 1, 1, seq_len)
+        rows_padding = padding_mask.reshape(batch_size, 1, seq_len, 1)
+        full_padding = torch.min(cols_padding, rows_padding) * torch.ones((1, heads_dim, 1, 1), device=device)
+        pre_norm_attention = torch.where(full_padding != 1, torch.tensor(neg_inifinity, dtype=torch.float, device=device), pre_norm_attention)
+        
+    # Apply softmax, for rows which are all -inf replace nans with 0s
+    attention = torch.softmax(pre_norm_attention / (embed_dim ** 0.5), dim=-1)
+    attention = torch.nan_to_num(attention, 0)
+    # Calculate values
+    values = torch.matmul(attention, v) 
+    
+    if no_heads_dim:
+        # Remove the synthetic heads dim 
+        attention = attention.reshape(batch_size, seq_len, seq_len)
+        values = values.reshape(batch_size, seq_len, embed_dim)
+    elif origin_shape is not None: # The weird case where len(shape) > 4, split the multiple "heads dim" back to the hidden dims
+        dest_shape = list(origin_shape[:-2]) + [seq_len, seq_len]
+        attention = attention.reshape(*dest_shape)
+        values = values.reshape(*origin_shape)
+        
     # ========================
 
 
     return values, attention
-
 
 
 class MultiHeadAttention(nn.Module):
@@ -80,7 +126,7 @@ class MultiHeadAttention(nn.Module):
         # TODO:
         # call the sliding window attention function you implemented
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        values, attention = sliding_window_attention(q, k, v, self.window_size, padding_mask)
         # ========================
 
         values = values.permute(0, 2, 1, 3) # [Batch, SeqLen, Head, Dims]
@@ -162,13 +208,18 @@ class EncoderLayer(nn.Module):
         #   3) Apply a feed-forward layer to the output of step 2, and then apply dropout again.
         #   4) Add a second residual connection and normalize again.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        step1 = self.self_attn(x, padding_mask)
+        step1 = self.dropout(step1)
+        step2 = x + step1
+        step2 = self.norm1(step2)
+        step3 = self.feed_forward(step2)
+        step3 = self.dropout(step3)
+        step4 = step2 + step3
+        x = self.norm2(step4)
         # ========================
         
         return x
-    
-    
-    
+
 class Encoder(nn.Module):
     def __init__(self, vocab_size, embed_dim, num_heads, num_layers, hidden_dim, max_seq_length, window_size, dropout=0.1):
         '''
@@ -212,8 +263,13 @@ class Encoder(nn.Module):
         #  5) Apply the classification MLP to the output vector corresponding to the special token [CLS] 
         #     (always the first token) to receive the logits.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
-        
+        embedded = self.encoder_embedding(sentence)
+        embedded = self.positional_encoding(embedded)
+        embedded = self.dropout(embedded)
+        encoded = embedded
+        for layer in self.encoder_layers:
+            encoded = layer(encoded, padding_mask)
+        output = self.classification_mlp(encoded)[:, 0, 0]
         # ========================
         
         
@@ -228,6 +284,3 @@ class Encoder(nn.Module):
         logits = self.forward(sentence, padding_mask)
         preds = torch.round(torch.sigmoid(logits))
         return preds
-
-    
-    

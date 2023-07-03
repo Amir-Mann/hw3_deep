@@ -215,7 +215,13 @@ def part3_transformer_encoder_hyperparams():
 
     # TODO: Tweak the hyperparameters to train the transformer encoder.
     # ====== YOUR CODE: ======
-    
+    hypers["embed_dim"] = 256
+    hypers["num_heads"] = 2
+    hypers["num_layers"] = 3
+    hypers["hidden_dim"] = 128
+    hypers["window_size"] = 32
+    hypers["droupout"] = 0.1
+    hypers["lr"] = 0.0001
     # ========================
     return hypers
 
@@ -248,7 +254,7 @@ part3_q2 = r"""
 
 We propose the “RASWA - random and sliding windowed attention” which works as follows:
 
-Each time you calculate attention matrix $A\in \mathbb{R} ^{n \vectimes n}$ , calculate it at the $w + 1$ main diagonals
+Each time you calculate attention matrix $A\in \mathbb{R} ^{n \times n}$ , calculate it at the $w + 1$ main diagonals
 (like we implemented) and also random $n \cdot w$ indices in $A$ and calculate them as well.
 
 This would propagate information throughout the sequence globally. Like in the previous question, after $L$ layers
