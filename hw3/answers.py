@@ -254,7 +254,7 @@ part3_q2 = r"""
 
 We propose the “RASWA - random and sliding windowed attention” which works as follows:
 
-Each time you calculate attention matrix $A\in \mathbb{R} ^{n \vectimes n}$ , calculate it at the $w + 1$ main diagonals
+Each time you calculate attention matrix $A\in \mathbb{R} ^{n \times n}$ , calculate it at the $w + 1$ main diagonals
 (like we implemented) and also random $n \cdot w$ indices in $A$ and calculate them as well.
 
 This would propagate information throughout the sequence globally. Like in the previous question, after $L$ layers
