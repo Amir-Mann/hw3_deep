@@ -253,10 +253,10 @@ at last layer.
 part4_q1 = r"""
 Our answer:
 
-BERT achieves better results than our previeous transforner, (around 15% better accuracy).
-This happens because BERT is a much larger model, pre trained on larger dataset, and so has stronger understanding
-of the english language then what can be obtained from our small dataset, with our smaller model which also only
-uses windowed attention. 
+BERT achieves better results (both in fine-tuning the last two linear layers and in fine-tuning all the layers) than our
+previeous trained-from-scratch transforner, (around 15-25% better accuracy in both fine-tuned models). This happens because BERT is a much larger model, pretrained 
+on larger dataset, and so has stronger understanding of the english language then what can be obtained from our
+small dataset, with our smaller model which also only uses windowed attention. 
 
 These results wouldn't be the same for any "downstream" task (altough for most - they would be), 
 because in some tasks, BERT's vast understanding might not be as usefull as specifically built model.
@@ -272,11 +272,11 @@ While the model that is trained from scratch would have performed similarily. no
 part4_q2 = r"""
 *Our answer:*
 
-The model would perform much worse while freezing the two last linea layers and fine-tuning only two internal layers.
+The model would perform worse while freezing the two last linear layers and fine-tuning only two internal layers.
 
 In BERT model, the last linear layers are the classification layers. As such, they are generally more 
 task specific layers. This is unlike the internal layers, such as the multy headed attention blocks, that are
-general language understanding layers, and should be usfull for any task. 
+general language understanding layers, and should be usefull for any task. 
 
 Thus, fine-tuning two internal layers is a much harder task than doing so to the classification head. 
 First of all, the layers we are optimizing are much farther from the output, making changes in them have expolding or
