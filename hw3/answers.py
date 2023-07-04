@@ -255,7 +255,7 @@ Our answer:
 
 BERT achieves better results (both in fine-tuning the last two linear layers and in fine-tuning all the layers) than our
 previeous trained-from-scratch transforner, (around 15-25% better accuracy in both fine-tuned models). This happens because BERT is a much larger model, pretrained 
-on larger dataset, and so has stronger understanding of the english language then what can be obtained from our
+on larger dataset, and so has stronger understanding of the english language compared to what could be obtained from our
 small dataset, with our smaller model which also only uses windowed attention. 
 
 These results wouldn't be the same for any "downstream" task (altough for most - they would be), 
